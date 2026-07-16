@@ -62,6 +62,10 @@ export function getAppUrl(request: Request): string {
     return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
   }
 
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/\/$/, "")}`;
+  }
+
   const origin = request.headers.get("origin");
   if (origin) return origin;
 
