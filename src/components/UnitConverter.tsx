@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import BakingConverter from "@/components/BakingConverter";
 import CurrencyConverter from "@/components/CurrencyConverter";
+import ElectricityConverter from "@/components/ElectricityConverter";
 import {
   categories,
   convertValue,
@@ -11,7 +12,7 @@ import {
   type ConversionCategory,
 } from "@/lib/conversions";
 
-export type NavCategoryId = CategoryId | "baking" | "currency";
+export type NavCategoryId = CategoryId | "baking" | "currency" | "electricity";
 
 const bakingNavItem = {
   id: "baking" as const,
@@ -27,6 +28,13 @@ const currencyNavItem = {
   icon: "💱",
 };
 
+const electricityNavItem = {
+  id: "electricity" as const,
+  name: "Electricity",
+  description: "Amps, volts & watts",
+  icon: "⚡",
+};
+
 const navItems = [
   ...categories.map((category) => ({
     id: category.id as NavCategoryId,
@@ -34,15 +42,17 @@ const navItems = [
     description: category.description,
     icon: category.icon,
   })),
+  electricityNavItem,
   bakingNavItem,
   currencyNavItem,
 ];
 
-type SpecialNavId = "baking" | "currency";
+type SpecialNavId = "baking" | "currency" | "electricity";
 
 function getNavAccent(id: NavCategoryId): SpecialNavId | "default" {
   if (id === "baking") return "baking";
   if (id === "currency") return "currency";
+  if (id === "electricity") return "electricity";
   return "default";
 }
 
@@ -56,6 +66,11 @@ const navAccentStyles = {
     active: "bg-sky-600 text-white shadow-sm",
     icon: "bg-sky-500",
     subtitle: "text-sky-100",
+  },
+  electricity: {
+    active: "bg-yellow-500 text-white shadow-sm",
+    icon: "bg-yellow-400",
+    subtitle: "text-yellow-100",
   },
   default: {
     active: "bg-emerald-600 text-white shadow-sm",
@@ -281,6 +296,8 @@ export default function UnitConverter() {
         <BakingConverter />
       ) : activeCategoryId === "currency" ? (
         <CurrencyConverter />
+      ) : activeCategoryId === "electricity" ? (
+        <ElectricityConverter />
       ) : (
         <ConverterPanel key={activeCategory.id} category={activeCategory} />
       )}

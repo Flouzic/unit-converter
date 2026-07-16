@@ -8,6 +8,20 @@ import { getAuthCallbackUrl, getSupabaseConfigError } from "@/lib/supabase/confi
 
 type AuthMode = "login" | "signup";
 
+function formatAuthError(message: string): string {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("rate limit") || lower.includes("email rate")) {
+    return "Supabase email limit reached (2 emails/hour on the free built-in sender). Wait about an hour, disable email confirmation in Supabase, or connect custom SMTP.";
+  }
+
+  if (lower.includes("only request this after") || lower.includes("seconds")) {
+    return "Please wait a minute before requesting another email. Supabase limits how often confirmation emails can be sent.";
+  }
+
+  return message;
+}
+
 export default function AuthForm({ mode }: { mode: AuthMode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,7 +61,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     setIsResending(false);
 
     if (resendError) {
-      setError(resendError.message);
+      setError(formatAuthError(resendError.message));
       return;
     }
 
@@ -79,7 +93,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
             setAwaitingConfirmation(true);
             setError("Confirm your email first, or resend the confirmation link below.");
           } else {
-            setError(signInError.message);
+            setError(formatAuthError(signInError.message));
           }
           return;
         }
@@ -98,7 +112,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        setError(formatAuthError(signUpError.message));
         return;
       }
 
