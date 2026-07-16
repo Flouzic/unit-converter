@@ -7,7 +7,9 @@ export function getSupabaseUrl(): string {
   const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 
   if (!raw) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL is missing from .env.local");
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL is not set. Add it in Vercel → Settings → Environment Variables, then redeploy.",
+    );
   }
 
   if (PLACEHOLDER_PATTERNS.some((pattern) => raw.includes(pattern))) {
@@ -32,7 +34,9 @@ export function getSupabaseAnonKey(): string {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
   if (!key) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY is missing from .env.local");
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY is not set. Add it in Vercel → Settings → Environment Variables, then redeploy.",
+    );
   }
 
   if (PLACEHOLDER_PATTERNS.some((pattern) => key.includes(pattern))) {
