@@ -65,3 +65,14 @@ export function getSupabaseConfigError(): string | null {
     return error instanceof Error ? error.message : "Supabase is not configured.";
   }
 }
+
+export function getAuthCallbackUrl(origin?: string): string {
+  const base =
+    origin ??
+    (typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ??
+        "http://localhost:3000");
+
+  return `${base}/auth/callback`;
+}

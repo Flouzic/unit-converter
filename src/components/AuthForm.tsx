@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { getSupabaseConfigError } from "@/lib/supabase/config";
+import { getAuthCallbackUrl, getSupabaseConfigError } from "@/lib/supabase/config";
 
 type AuthMode = "login" | "signup";
 
@@ -14,9 +14,11 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "auth_callback_failed"
-      ? "Email confirmation failed. Try signing in again or request a new link."
+      ? "Email confirmation failed. Try signing in again or resend the confirmation email."
       : null,
   );
   const [message, setMessage] = useState<string | null>(null);
@@ -24,6 +26,33 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
   const isLogin = mode === "login";
   const configError = useMemo(() => getSupabaseConfigError(), []);
   const supabase = useMemo(() => (configError ? null : createClient()), [configError]);
+
+  async function resendConfirmationEmail() {
+    if (!supabase || !email.trim()) {
+      setError("Enter your email address first.");
+      return;
+    }
+
+    setIsResending(true);
+    setError(null);
+
+    const { error: resendError } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim(),
+      options: {
+        emailRedirectTo: getAuthCallbackUrl(),
+      },
+    });
+
+    setIsResending(false);
+
+    if (resendError) {
+      setError(resendError.message);
+      return;
+    }
+
+    setMessage("Confirmation email sent again. Check your inbox and spam folder.");
+  }
 
   async function handleEmailAuth(event: React.FormEvent) {
     event.preventDefault();
@@ -36,6 +65,7 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
     setIsLoading(true);
     setError(null);
     setMessage(null);
+    setAwaitingConfirmation(false);
 
     try {
       if (isLogin) {
@@ -45,7 +75,12 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         });
 
         if (signInError) {
-          setError(signInError.message);
+          if (signInError.message.toLowerCase().includes("email not confirmed")) {
+            setAwaitingConfirmation(true);
+            setError("Confirm your email first, or resend the confirmation link below.");
+          } else {
+            setError(signInError.message);
+          }
           return;
         }
 
@@ -54,11 +89,11 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         return;
       }
 
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: getAuthCallbackUrl(),
         },
       });
 
@@ -67,10 +102,24 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
         return;
       }
 
-      setMessage("Check your email to confirm your account.");
+      if (data.session) {
+        router.push("/");
+        router.refresh();
+        return;
+      }
+
+      if (data.user?.identities?.length === 0) {
+        setError("An account with this email already exists. Try logging in instead.");
+        return;
+      }
+
+      setAwaitingConfirmation(true);
+      setMessage(
+        "If email confirmation is enabled, check your inbox and spam folder for a link from Supabase.",
+      );
     } catch {
       setError(
-        "Could not reach Supabase. Check NEXT_PUBLIC_SUPABASE_URL in .env.local — it should be https://your-project.supabase.co with no /rest/v1/ at the end.",
+        "Could not reach Supabase. Check your Supabase URL and anon key in Vercel environment variables.",
       );
     } finally {
       setIsLoading(false);
@@ -138,6 +187,17 @@ export default function AuthForm({ mode }: { mode: AuthMode }) {
 
           {message ? (
             <p className="text-sm text-emerald-700 dark:text-emerald-400">{message}</p>
+          ) : null}
+
+          {awaitingConfirmation ? (
+            <button
+              type="button"
+              onClick={() => void resendConfirmationEmail()}
+              disabled={isResending}
+              className="w-full rounded-xl border border-emerald-200 px-4 py-3 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+            >
+              {isResending ? "Sending…" : "Resend confirmation email"}
+            </button>
           ) : null}
 
           <button
