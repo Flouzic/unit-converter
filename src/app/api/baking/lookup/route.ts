@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   buildSearchContext,
   extractGramsFromText,
@@ -33,30 +33,48 @@ function createCustomIngredient(
   };
 }
 
+function parseJsonFromText(text: string): unknown {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+  return JSON.parse(candidate);
+}
+
+const RETIRED_MODEL_ALIASES: Record<string, string> = {
+  "claude-3-5-haiku-20241022": "claude-haiku-4-5",
+  "claude-3-7-sonnet-20250219": "claude-sonnet-5",
+  "claude-sonnet-4-20250514": "claude-sonnet-5",
+  "claude-3-5-sonnet-20241022": "claude-sonnet-5",
+  "claude-3-5-sonnet-20240620": "claude-sonnet-5",
+};
+
+function resolveAnthropicModel(): string {
+  const requested = process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5";
+  return RETIRED_MODEL_ALIASES[requested] ?? requested;
+}
+
 async function lookupWithAi(
   query: string,
   searchContext: string,
 ): Promise<CustomIngredient | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;
 
-  const client = new OpenAI({ apiKey });
+  const client = new Anthropic({ apiKey });
 
-  const completion = await client.chat.completions.create({
-    model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+  const message = await client.messages.create({
+    model: resolveAnthropicModel(),
+    max_tokens: 512,
     temperature: 0.1,
-    response_format: { type: "json_object" },
+    system: [
+      "You extract baking conversion data from web search snippets.",
+      "Respond with JSON only, no markdown or extra text.",
+      "JSON keys: name (string), gramsPerCup (number), confidence (high|medium|low), notes (string), sourceSummary (string).",
+      "gramsPerCup must be grams for 1 US customary cup of the ingredient.",
+      "If uncertain, set confidence to low and pick the most commonly cited value.",
+      "Never invent extreme values; typical baking ingredients are 40-500 g per cup.",
+    ].join(" "),
     messages: [
-      {
-        role: "system",
-        content: [
-          "You extract baking conversion data from web search snippets.",
-          "Return JSON with keys: name (string), gramsPerCup (number), confidence (high|medium|low), notes (string), sourceSummary (string).",
-          "gramsPerCup must be grams for 1 US customary cup of the ingredient.",
-          "If uncertain, set confidence to low and pick the most commonly cited value.",
-          "Never invent extreme values; typical baking ingredients are 40-500 g per cup.",
-        ].join(" "),
-      },
       {
         role: "user",
         content: [
@@ -69,16 +87,22 @@ async function lookupWithAi(
     ],
   });
 
-  const content = completion.choices[0]?.message?.content;
-  if (!content) return null;
+  const textBlock = message.content.find((block) => block.type === "text");
+  if (!textBlock || textBlock.type !== "text") return null;
 
-  const parsed = JSON.parse(content) as {
+  let parsed: {
     name?: string;
     gramsPerCup?: number;
     confidence?: CustomIngredient["confidence"];
     notes?: string;
     sourceSummary?: string;
   };
+
+  try {
+    parsed = parseJsonFromText(textBlock.text) as typeof parsed;
+  } catch {
+    return null;
+  }
 
   if (
     !parsed.gramsPerCup ||
@@ -170,7 +194,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          "Could not find a conversion for that ingredient. Try a more specific name, or add OPENAI_API_KEY for better AI lookup.",
+          "Could not find a conversion for that ingredient. Try a more specific name, or add ANTHROPIC_API_KEY for better AI lookup.",
       },
       { status: 404 },
     );

@@ -230,7 +230,7 @@ function IngredientPicker({
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               AI searches the web for cup-to-gram data. Add{" "}
               <code className="rounded bg-zinc-100 px-1 py-0.5 dark:bg-zinc-800">
-                OPENAI_API_KEY
+                ANTHROPIC_API_KEY
               </code>{" "}
               in `.env.local` for the most accurate results.
             </p>
